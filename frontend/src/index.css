@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #0c0c0e;
+  --color-surface: #141416;
+  --color-surface-elevated: #1c1c20;
+  --color-border: #2a2a30;
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #71717a;
+  --color-accent: #f97316;
+  --color-accent-hover: #fb923c;
+  --color-success: #22c55e;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  --font-sans: 'Geist', 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-text-primary font-sans antialiased;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-tight;
+  }
+
+  ::selection {
+    @apply bg-accent/30;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-surface;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-muted;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-surface-elevated/80 backdrop-blur-md border border-white/5;
+  }
+
+  .card {
+    @apply bg-surface border border-border rounded-xl;
+  }
+
+  .btn-primary {
+    @apply bg-accent text-white px-4 py-2 rounded-lg font-medium
+           transition-all duration-150 hover:bg-accent-hover
+           active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply border border-border px-4 py-2 rounded-lg font-medium
+           transition-all duration-150 hover:bg-surface-elevated
+           active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .input {
+    @apply bg-surface border border-border rounded-lg px-3 py-2
+           placeholder:text-text-muted
+           focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent
+           transition-all duration-150;
+  }
+
+  .skeleton {
+    @apply animate-pulse bg-surface-elevated rounded;
+  }
+}
+
+.light {
+  --color-background: #fafafa;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #f4f4f5;
+  --color-border: #e4e4e7;
+  --color-text-primary: #18181b;
+  --color-text-secondary: #52525b;
+  --color-text-muted: #a1a1aa;
+  --color-accent: #ea580c;
+  --color-accent-hover: #f97316;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+pre, code {
+  font-family: var(--font-mono);
+}
+
+pre {
+  @apply bg-surface-elevated p-4 rounded-lg overflow-x-auto;
+}
+
+code:not(pre code) {
+  @apply bg-surface-elevated px-1.5 py-0.5 rounded text-sm;
+}
