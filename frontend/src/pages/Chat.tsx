@@ -469,14 +469,18 @@ export function Chat() {
           setSelectedModel(key.models[0]);
         }
       } else {
-        const chatModels = CHAT_MODELS.filter(
-          (m) => m.provider === key.provider,
-        );
-        const currentModelValid = chatModels.some(
+        const allModelsForProvider = [
+          ...CHAT_MODELS.filter((m) => m.provider === key.provider),
+          ...IMAGE_MODELS.filter((m) => m.provider === key.provider),
+          ...VIDEO_MODELS.filter((m) => m.provider === key.provider),
+          ...AUDIO_MODELS.filter((m) => m.provider === key.provider),
+          ...MUSIC_MODELS.filter((m) => m.provider === key.provider),
+        ];
+        const currentModelValid = allModelsForProvider.some(
           (m) => m.id === selectedModel,
         );
-        if (chatModels.length > 0 && !currentModelValid) {
-          setSelectedModel(chatModels[0].id);
+        if (allModelsForProvider.length > 0 && !currentModelValid) {
+          setSelectedModel(allModelsForProvider[0].id);
         }
       }
     }
