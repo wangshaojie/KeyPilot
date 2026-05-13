@@ -15,6 +15,7 @@ import {
   Copy,
   CheckCheck,
   X,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,11 +75,11 @@ const MarkdownContent = memo(function MarkdownContent({
             );
           },
           li({ children }) {
-            return <li className="text-text-secondary">{children}</li>;
+            return <li className="text-inherit">{children}</li>;
           },
           blockquote({ children }) {
             return (
-              <blockquote className="border-l-4 border-accent/50 pl-4 italic text-text-secondary mb-4">
+              <blockquote className="border-l-4 border-accent/50 pl-4 italic text-inherit mb-4">
                 {children}
               </blockquote>
             );
@@ -495,6 +496,7 @@ export function Chat() {
   useEffect(() => {
     if (!selectedModel) return;
 
+    console.log("[Chat] useEffect triggered, selectedModel:", selectedModel);
     const modelLower = selectedModel.toLowerCase();
 
     // Infer type from model name patterns
@@ -979,8 +981,22 @@ export function Chat() {
           </div>
 
           {/* Input */}
-          <div className="shrink-0 p-4 border-t border-border">
-            <div className="flex gap-3">
+          <div className="shrink-0 p-4">
+            <div className="relative bg-surface/60 backdrop-blur-xl border border-border/60 rounded-2xl shadow-sm overflow-hidden">
+              {/* Generation type badge */}
+              {generationType && (
+                <div className="absolute -top-px left-6">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-b-lg bg-accent/10 text-accent text-xs font-medium border border-accent/20 border-t-0 backdrop-blur-sm">
+                    {generationType === "image" && <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />}
+                    {generationType === "video" && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />}
+                    {generationType === "audio" && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+                    {generationType === "music" && <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />}
+                    {generationType === "image" ? "图片生成" :
+                     generationType === "video" ? "视频生成" :
+                     generationType === "audio" ? "语音合成" : "音乐生成"}
+                  </span>
+                </div>
+              )}
               <textarea
                 ref={inputRef}
                 value={input}
@@ -997,38 +1013,47 @@ export function Chat() {
                           ? "描述你想要创作的音乐风格..."
                           : "输入消息... (Enter 发送, Shift+Enter 换行)"
                 }
-                className="flex-1 bg-surface border border-border rounded-xl px-4 py-3 resize-none text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent min-h-30"
-                rows={4}
+                className="w-full bg-transparent px-5 pt-5 pb-4 resize-none text-sm placeholder:text-text-muted/50 focus:outline-none min-h-[80px]"
+                rows={3}
               />
-              <Button
-                onClick={() => {
-                  if (generationType) {
-                    handleGenerate(
-                      generationType as "image" | "video" | "audio" | "music",
-                    );
-                  } else {
-                    handleSend();
+              <div className="flex items-center justify-between px-5 pb-4">
+                <div className="flex items-center gap-3">
+                  {input.length > 0 && (
+                    <span className="text-[11px] text-text-muted/40">{input.length} 字符</span>
+                  )}
+                </div>
+                <Button
+                  onClick={() => {
+                    if (generationType) {
+                      handleGenerate(
+                        generationType as "image" | "video" | "audio" | "music",
+                      );
+                    } else {
+                      handleSend();
+                    }
+                  }}
+                  disabled={
+                    !input.trim() ||
+                    !selectedKeyId ||
+                    !selectedModel ||
+                    streaming ||
+                    generating
                   }
-                }}
-                disabled={
-                  !input.trim() ||
-                  !selectedKeyId ||
-                  !selectedModel ||
-                  streaming ||
-                  generating
-                }
-                className="shrink-0"
-              >
-                {generating ? (
-                  generationType ? (
-                    "生成中..."
+                  className="h-9 px-4 rounded-xl bg-accent hover:bg-accent/90 text-white shadow-md shadow-accent/20 transition-all duration-200 active:scale-95 disabled:opacity-40 disabled:scale-100 gap-2"
+                >
+                  {generating ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      {generationType ? "生成中..." : "发送中..."}
+                    </>
                   ) : (
-                    "发送中..."
-                  )
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-              </Button>
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      {generationType ? "生成" : "发送"}
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
