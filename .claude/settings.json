@@ -62,7 +62,13 @@
       "Bash(node -e \"const { IMAGE_MODELS } = require\\('./src/lib/constants.ts'\\); console.log\\(IMAGE_MODELS.filter\\(m => m.id === 'image-01'\\)\\)\")",
       "Bash(node -e ' *)",
       "Bash(git rm *)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(git remote *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/OpenSenseNova/SenseNova-U1/main/examples/t2i/data/samples_infographic.jsonl\")"
     ]
   }
 }

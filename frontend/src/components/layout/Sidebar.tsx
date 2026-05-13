@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Zap,
+  BookOpen,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -17,6 +18,7 @@ const navItems = [
   { path: '/', label: '仪表盘', icon: LayoutDashboard },
   { path: '/keys', label: 'API 密钥', icon: Key },
   { path: '/chat', label: '对话', icon: MessageSquare },
+  { path: '/prompts', label: 'Prompt 模板', icon: BookOpen },
   { path: '/speed-test', label: '速度测试', icon: Gauge },
   { path: '/statistics', label: '统计', icon: BarChart3 },
 ]

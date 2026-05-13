@@ -13,18 +13,18 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col">
       <Header />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 h-full overflow-hidden min-h-0">
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
         <main
           className={cn(
-            "flex-1 overflow-auto p-6 transition-all duration-300",
+            "flex-1 h-[90vh] overflow-hidden p-6 transition-all duration-300",
             sidebarCollapsed ? "ml-16" : "ml-64",
           )}
         >
-          <div className="mx-auto">{children}</div>
+          <div className="h-full overflow-hidden">{children}</div>
         </main>
       </div>
       <footer className="h-8 border-t border-border bg-surface flex items-center px-4 text-xs text-text-muted">

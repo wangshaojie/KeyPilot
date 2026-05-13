@@ -17,6 +17,7 @@ interface ChatState {
   selectConversation: (id: string | null) => void
   sendMessage: (content: string, keyId: string, model: string) => Promise<void>
   addMessages: (messages: ChatMessage[]) => void
+  updateMessage: (id: string, updates: Partial<ChatMessage>) => void
   clearMessages: () => void
   deleteConversation: (id: string) => Promise<void>
   saveMessagesToBackend: () => Promise<void>
@@ -261,6 +262,36 @@ export const useChatStore = create<ChatState>()(
 
           return {
             messages: [...state.messages, ...newMessages],
+            conversations: updatedConversations,
+          }
+        })
+
+        // Save to backend after updating state
+        get().saveMessagesToBackend()
+      },
+
+      // Replace a message by ID (for loading state replacement)
+      updateMessage: (id, updates) => {
+        set((state) => {
+          if (!state.activeConversationId) return state
+
+          const updatedConversations = state.conversations.map((c) => {
+            if (c.id === state.activeConversationId) {
+              return {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === id ? { ...m, ...updates } : m
+                ),
+                updatedAt: new Date().toISOString(),
+              }
+            }
+            return c
+          })
+
+          return {
+            messages: state.messages.map((m) =>
+              m.id === id ? { ...m, ...updates } : m
+            ),
             conversations: updatedConversations,
           }
         })

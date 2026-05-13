@@ -45,6 +45,10 @@ export interface ChatMessage {
   keyId: string
   timestamp: string
   tokens?: number
+  generationType?: string
+  isLoading?: boolean
+  isError?: boolean
+  prompt?: string
 }
 
 export interface Conversation {

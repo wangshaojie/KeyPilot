@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Copy,
   CheckCheck,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,41 +30,21 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useChatStore } from "@/stores/useChatStore";
 import { useKeyStore } from "@/stores/useKeyStore";
-import { CHAT_MODELS, IMAGE_MODELS, VIDEO_MODELS, AUDIO_MODELS, MUSIC_MODELS, PROVIDERS, type ProviderId } from "@/lib/constants";
+import {
+  CHAT_MODELS,
+  IMAGE_MODELS,
+  VIDEO_MODELS,
+  AUDIO_MODELS,
+  MUSIC_MODELS,
+  PROVIDERS,
+  type ProviderId,
+} from "@/lib/constants";
 import { cn, formatDate, copyToClipboard } from "@/lib/utils";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-
-// Markdown styles
-const markdownStyles = {
-  root: "text-sm leading-relaxed",
-  p: "mb-4 last:mb-0",
-  ul: "list-disc list-inside mb-4 space-y-1",
-  ol: "list-decimal list-inside mb-4 space-y-1",
-  li: "text-text-secondary",
-  blockquote:
-    "border-l-4 border-accent/50 pl-4 italic text-text-secondary mb-4",
-  code: {
-    inline:
-      "bg-surface-elevated px-1.5 py-0.5 rounded text-accent font-mono text-xs",
-    block: "not-prose mb-4 rounded-lg overflow-hidden",
-  },
-  pre: "mb-4 rounded-lg overflow-hidden",
-  a: "text-accent hover:underline",
-  h1: "text-xl font-bold mb-4",
-  h2: "text-lg font-bold mb-3",
-  h3: "text-base font-semibold mb-2",
-  hr: "border-border my-6",
-  table: "w-full border-collapse mb-4 text-sm",
-  th: "border border-border bg-surface-elevated px-3 py-2 text-left font-semibold",
-  td: "border border-border px-3 py-2",
-  strong: "font-semibold",
-  em: "italic",
-  hr: "border-border my-6",
-};
 
 const MarkdownContent = memo(function MarkdownContent({
   content,
@@ -157,10 +138,10 @@ const MarkdownContent = memo(function MarkdownContent({
             return (
               <img
                 src={src}
-                alt={alt || 'Generated image'}
+                alt={alt || "Generated image"}
                 className="max-w-full h-auto rounded-lg my-3 cursor-pointer hover:opacity-90 transition-opacity"
-                style={{ maxHeight: '600px', objectFit: 'contain' }}
-                onClick={() => window.open(src, '_blank')}
+                style={{ maxHeight: "600px", objectFit: "contain" }}
+                onClick={() => window.open(src, "_blank")}
               />
             );
           },
@@ -215,7 +196,9 @@ const MarkdownContent = memo(function MarkdownContent({
 function isImageUrl(content: string): boolean {
   if (!content) return false;
   // Check if it's a direct URL to an image
-  return /^(https?:\/\/|\/\/).+\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(content);
+  return /^(https?:\/\/|\/\/).+\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(
+    content,
+  );
 }
 
 const MessageItem = memo(function MessageItem({
@@ -258,13 +241,52 @@ const MessageItem = memo(function MessageItem({
         )}
       >
         <div className="text-sm">
-          {isImageUrl(message.content) ? (
+          {message.isLoading ? (
+            // Loading state - show skeleton placeholder
+            <div className="space-y-2">
+              {message.generationType === "image" && (
+                <div className="w-64 h-64 bg-surface-elevated rounded-lg animate-pulse flex items-center justify-center">
+                  <span className="text-text-muted text-sm">生成图片中...</span>
+                </div>
+              )}
+              {message.generationType === "video" && (
+                <div className="w-64 h-40 bg-surface-elevated rounded-lg animate-pulse flex items-center justify-center">
+                  <span className="text-text-muted text-sm">生成视频中...</span>
+                </div>
+              )}
+              {message.generationType === "audio" && (
+                <div className="w-48 h-12 bg-surface-elevated rounded-lg animate-pulse flex items-center justify-center">
+                  <span className="text-text-muted text-sm">合成语音中...</span>
+                </div>
+              )}
+              {message.generationType === "music" && (
+                <div className="w-48 h-12 bg-surface-elevated rounded-lg animate-pulse flex items-center justify-center">
+                  <span className="text-text-muted text-sm">生成音乐中...</span>
+                </div>
+              )}
+              <p className="text-xs text-text-muted italic truncate">
+                {message.prompt}
+              </p>
+            </div>
+          ) : message.isError ? (
+            // Error state
+            <span className="text-error">{message.content}</span>
+          ) : message.generationType === "image" &&
+            isImageUrl(message.content) ? (
             <img
               src={message.content}
               alt="Generated image"
               className="max-w-full h-auto rounded-lg my-2 cursor-pointer hover:opacity-90 transition-opacity"
-              style={{ maxHeight: '600px', objectFit: 'contain' }}
-              onClick={() => window.open(message.content, '_blank')}
+              style={{ maxHeight: "600px", objectFit: "contain" }}
+              onClick={() => setLightboxImage(message.content)}
+            />
+          ) : message.generationType === "image" && message.content ? (
+            <img
+              src={message.content}
+              alt="Generated image"
+              className="max-w-full h-auto rounded-lg my-2 cursor-pointer hover:opacity-90 transition-opacity"
+              style={{ maxHeight: "600px", objectFit: "contain" }}
+              onClick={() => setLightboxImage(message.content)}
             />
           ) : (
             <MarkdownContent content={message.content} />
@@ -328,50 +350,6 @@ const StreamingMessage = memo(function StreamingMessage() {
   );
 });
 
-// Full Markdown renderer for completed messages
-const StreamingMarkdown = memo(function StreamingMarkdown({
-  content,
-}: {
-  content: string;
-}) {
-  return (
-    <div className="text-sm">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          // Use pre for code blocks to avoid XSS
-          pre: ({ children }) => (
-            <pre className="mb-4 rounded-lg overflow-hidden bg-black/90 p-3">
-              {children}
-            </pre>
-          ),
-          code: ({ className, children, ...props }) => {
-            const match = /language-(\w+)/.exec(className || "");
-            const isInline = !match && !className;
-            if (isInline) {
-              return (
-                <code
-                  className="bg-surface-elevated px-1.5 py-0.5 rounded text-accent font-mono text-xs"
-                  {...props}
-                >
-                  {children}
-                </code>
-              );
-            }
-            return (
-              <code className={className} {...props}>
-                {children}
-              </code>
-            );
-          },
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    </div>
-  );
-});
-
 export function Chat() {
   // Use selectors to avoid unnecessary re-renders when streamingContent changes
   const conversations = useChatStore((s) => s.conversations);
@@ -385,6 +363,7 @@ export function Chat() {
   const deleteConversation = useChatStore((s) => s.deleteConversation);
   const fetchConversations = useChatStore((s) => s.fetchConversations);
   const addMessages = useChatStore((s) => s.addMessages);
+  const updateMessage = useChatStore((s) => s.updateMessage);
 
   // Note: streamingContent is now subscribed inside StreamingMessage component
   // to avoid triggering Chat component re-renders during streaming
@@ -397,6 +376,7 @@ export function Chat() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [generationType, setGenerationType] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -452,8 +432,18 @@ export function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
+  // Track the previous selectedKeyId to avoid unnecessary resets
+  const prevSelectedKeyIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!selectedKeyId) return;
+
+    // Only reset model when switching to a DIFFERENT key
+    if (prevSelectedKeyIdRef.current === selectedKeyId) {
+      // Same key, don't reset the model
+      return;
+    }
+    prevSelectedKeyIdRef.current = selectedKeyId;
 
     const key = keys.find((k) => k.id === selectedKeyId);
     if (!key) return;
@@ -490,7 +480,7 @@ export function Chat() {
         }
       }
     }
-  }, [selectedKeyId, generationType, keys]);
+  }, [selectedKeyId, generationType]);
 
   // Reset to text mode when switching conversations
   useEffect(() => {
@@ -504,20 +494,30 @@ export function Chat() {
     const modelLower = selectedModel.toLowerCase();
 
     // Infer type from model name patterns
-    if (modelLower.includes('image') || modelLower.includes('u1-fast') || modelLower.includes('wanx') || modelLower.includes('dall') || modelLower.includes('imagen')) {
-      console.log('[Chat] Setting generationType to: image');
-      setGenerationType('image');
-    } else if (modelLower.includes('video') || modelLower.includes('hailuo')) {
-      console.log('[Chat] Setting generationType to: video');
-      setGenerationType('video');
-    } else if (modelLower.includes('audio') || modelLower.includes('speech') || modelLower.includes('tts')) {
-      console.log('[Chat] Setting generationType to: audio');
-      setGenerationType('audio');
-    } else if (modelLower.includes('music')) {
-      console.log('[Chat] Setting generationType to: music');
-      setGenerationType('music');
+    if (
+      modelLower.includes("image") ||
+      modelLower.includes("u1-fast") ||
+      modelLower.includes("wanx") ||
+      modelLower.includes("dall") ||
+      modelLower.includes("imagen")
+    ) {
+      console.log("[Chat] Setting generationType to: image");
+      setGenerationType("image");
+    } else if (modelLower.includes("video") || modelLower.includes("hailuo")) {
+      console.log("[Chat] Setting generationType to: video");
+      setGenerationType("video");
+    } else if (
+      modelLower.includes("audio") ||
+      modelLower.includes("speech") ||
+      modelLower.includes("tts")
+    ) {
+      console.log("[Chat] Setting generationType to: audio");
+      setGenerationType("audio");
+    } else if (modelLower.includes("music")) {
+      console.log("[Chat] Setting generationType to: music");
+      setGenerationType("music");
     } else {
-      console.log('[Chat] Setting generationType to: null (chat model)');
+      console.log("[Chat] Setting generationType to: null (chat model)");
       setGenerationType(null);
     }
   }, [selectedModel]);
@@ -575,13 +575,16 @@ export function Chat() {
     }
 
     // Check if selected model is a generation model
-    const modelInfo = IMAGE_MODELS.find(m => m.id === selectedModel) ||
-                      VIDEO_MODELS.find(m => m.id === selectedModel) ||
-                      AUDIO_MODELS.find(m => m.id === selectedModel) ||
-                      MUSIC_MODELS.find(m => m.id === selectedModel);
+    const modelInfo =
+      IMAGE_MODELS.find((m) => m.id === selectedModel) ||
+      VIDEO_MODELS.find((m) => m.id === selectedModel) ||
+      AUDIO_MODELS.find((m) => m.id === selectedModel) ||
+      MUSIC_MODELS.find((m) => m.id === selectedModel);
 
     if (modelInfo) {
-      toast.error(`请选择聊天模型，${modelInfo.name} 是生成模型，需要从下拉列表中选择聊天模型`);
+      toast.error(
+        `请选择聊天模型，${modelInfo.name} 是生成模型，需要从下拉列表中选择聊天模型`,
+      );
       return;
     }
 
@@ -620,6 +623,7 @@ export function Chat() {
 
     const prompt = input.trim();
     const userMessageId = `gen-user-${Date.now()}`;
+    const loadingMessageId = `gen-loading-${Date.now()}`;
     setInput("");
 
     // Immediately add user message to show in chat
@@ -628,8 +632,26 @@ export function Chat() {
       role: "user" as const,
       content: prompt,
       timestamp: new Date().toISOString(),
+      model: selectedModel,
+      provider: "",
+      keyId: selectedKeyId,
     };
     addMessages([userMessage]);
+
+    // Add loading placeholder message
+    const loadingMessage = {
+      id: loadingMessageId,
+      role: "assistant" as const,
+      content: "",
+      timestamp: new Date().toISOString(),
+      generationType: type,
+      isLoading: true,
+      prompt: prompt,
+      model: selectedModel,
+      provider: "",
+      keyId: selectedKeyId,
+    };
+    addMessages([loadingMessage]);
 
     try {
       const response = await fetch(`/api/generation/${type}`, {
@@ -647,7 +669,24 @@ export function Chat() {
           .json()
           .catch(() => ({ error: "Unknown error" }));
         console.error("[Generation] Error response:", errorData);
-        throw new Error(errorData.error || `生成失败 (${response.status})`);
+
+        // Remove loading message and show error
+        const errorMessage = {
+          id: `gen-error-${Date.now()}`,
+          role: "assistant" as const,
+          content: `生成失败: ${errorData.error || errorData.message || "Unknown error"}`,
+          timestamp: new Date().toISOString(),
+          generationType: type,
+          isError: true,
+        };
+        // Remove loading message and add error
+        updateMessage(loadingMessageId, {
+          content: errorMessage.content,
+          isError: true,
+          isLoading: false,
+        });
+        setGenerating(false);
+        return;
       }
 
       const result = await response.json();
@@ -660,24 +699,14 @@ export function Chat() {
         result.text ||
         JSON.stringify(result);
 
-      console.log('[Generation] Result:', result);
-      console.log('[Generation] Extracted imageUrl:', imageUrl);
+      console.log("[Generation] Result:", result);
+      console.log("[Generation] Extracted imageUrl:", imageUrl);
 
-      // Add result as assistant message - store URL directly
-      const assistantMessage = {
-        id: `gen-${Date.now()}`,
-        role: "assistant" as const,
-        content: imageUrl, // Store URL directly, isImageUrl() will render it as <img>
-        timestamp: new Date().toISOString(),
-        generationType: type,
-        prompt: prompt,
-        model: selectedModel,
-        provider: '',
-        keyId: selectedKeyId,
-      };
-
-      // Add assistant message
-      addMessages([assistantMessage]);
+      // Replace loading message with result
+      updateMessage(loadingMessageId, {
+        content: imageUrl,
+        isLoading: false,
+      });
 
       setGenerationType(null);
       toast.success(`${type}生成成功`);
@@ -688,11 +717,31 @@ export function Chat() {
     }
   };
 
+  // Handle conversation selection and restore key/model
+  const handleSelectConversation = (id: string) => {
+    selectConversation(id);
+    // Restore key and model from messages after a short delay to allow store to update
+    setTimeout(() => {
+      const currentMessages = useChatStore.getState().messages;
+      if (currentMessages.length === 0) return;
+      const lastMessage = currentMessages[currentMessages.length - 1];
+      if (lastMessage) {
+        const currentKeys = useKeyStore.getState().keys;
+        if (lastMessage.keyId && currentKeys.some((k) => k.id === lastMessage.keyId)) {
+          setSelectedKeyId(lastMessage.keyId);
+        }
+        if (lastMessage.model) {
+          setSelectedModel(lastMessage.model);
+        }
+      }
+    }, 0);
+  };
+
   return (
-    <div className="h-[calc(100dvh-8rem)] flex gap-6">
+    <div className="h-full flex gap-6 min-h-0">
       {/* Conversations Sidebar */}
-      <div className="w-64 shrink-0 flex flex-col">
-        <Card className="flex-1 flex flex-col overflow-hidden">
+      <div className="w-64 shrink-0 flex flex-col min-h-0">
+        <Card className="flex-1 flex flex-col overflow-hidden min-h-0">
           <CardHeader className="p-4 border-b border-border">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">对话</CardTitle>
@@ -712,25 +761,28 @@ export function Chat() {
                   <div
                     key={conv.id}
                     className={cn(
-                      "flex items-center gap-1 px-3 py-2 rounded-lg mb-1 transition-colors cursor-pointer",
+                      "flex items-center gap-2 px-3 py-2.5 rounded-lg mb-1 transition-colors cursor-pointer group/item",
                       activeConversationId === conv.id
                         ? "bg-accent/10 text-accent"
                         : "hover:bg-surface-elevated text-text-secondary",
                     )}
-                    onClick={() => selectConversation(conv.id)}
+                    onClick={() => handleSelectConversation(conv.id)}
                   >
+                    <MessageSquare className="w-4 h-4 shrink-0 text-text-muted" />
                     <div className="flex-1 min-w-0">
-                      <p className="truncate font-medium text-sm">
+                      <p className="font-medium text-sm line-clamp-1">
                         {conv.title || "新对话"}
                       </p>
-                      <p className="text-xs text-text-muted truncate">
-                        {conv.messages.length} 条消息
-                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-text-muted truncate">
+                          {formatDate(conv.updatedAt)}
+                        </span>
+                      </div>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 hover:text-error"
+                      className="h-6 w-6 shrink-0 opacity-0 group-hover/item:opacity-100 hover:text-error"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (confirm("确定要删除这个对话吗？")) {
@@ -752,9 +804,9 @@ export function Chat() {
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col h-full min-h-0">
         {/* Model Selector */}
-        <div className="flex items-center gap-4 mb-4 p-4 bg-surface rounded-xl border border-border">
+        <div className="shrink-0 flex items-center gap-4 mb-4 p-4 bg-surface rounded-xl border border-border">
           <div className="flex-1">
             <Label className="text-xs text-text-muted mb-1 block">
               服务商 / 密钥
@@ -793,7 +845,8 @@ export function Chat() {
 
               // Custom provider: use stored models or input
               if (isCustom) {
-                const hasModels = selectedKey?.models && selectedKey.models.length > 0;
+                const hasModels =
+                  selectedKey?.models && selectedKey.models.length > 0;
                 if (hasModels) {
                   return (
                     <Select
@@ -830,11 +883,21 @@ export function Chat() {
                   </SelectTrigger>
                   <SelectContent>
                     {[
-                      ...CHAT_MODELS.filter((m) => m.provider === selectedKey?.provider),
-                      ...IMAGE_MODELS.filter((m) => m.provider === selectedKey?.provider),
-                      ...VIDEO_MODELS.filter((m) => m.provider === selectedKey?.provider),
-                      ...AUDIO_MODELS.filter((m) => m.provider === selectedKey?.provider),
-                      ...MUSIC_MODELS.filter((m) => m.provider === selectedKey?.provider),
+                      ...CHAT_MODELS.filter(
+                        (m) => m.provider === selectedKey?.provider,
+                      ),
+                      ...IMAGE_MODELS.filter(
+                        (m) => m.provider === selectedKey?.provider,
+                      ),
+                      ...VIDEO_MODELS.filter(
+                        (m) => m.provider === selectedKey?.provider,
+                      ),
+                      ...AUDIO_MODELS.filter(
+                        (m) => m.provider === selectedKey?.provider,
+                      ),
+                      ...MUSIC_MODELS.filter(
+                        (m) => m.provider === selectedKey?.provider,
+                      ),
                     ].map((model) => (
                       <SelectItem key={model.id} value={model.id}>
                         {model.name} ({model.type})
@@ -862,8 +925,8 @@ export function Chat() {
         </div>
 
         {/* Messages with ScrollArea */}
-        <Card className="flex-1 flex flex-col overflow-hidden">
-          <ScrollArea className="flex-1 p-4 w-full">
+        <Card className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <div className="flex-1 p-4 overflow-y-auto">
             <div className="space-y-4 max-w-8xl" ref={messagesContainerRef}>
               {messages.length === 0 && !streaming ? (
                 <div className="h-full flex flex-col items-center justify-center text-center py-20">
@@ -890,10 +953,10 @@ export function Chat() {
               )}
             </div>
             <div ref={messagesEndRef} className="h-px" />
-          </ScrollArea>
+          </div>
 
           {/* Input */}
-          <div className="p-4 border-t border-border">
+          <div className="shrink-0 p-4 border-t border-border">
             <div className="flex gap-3">
               <textarea
                 ref={inputRef}
@@ -917,7 +980,9 @@ export function Chat() {
               <Button
                 onClick={() => {
                   if (generationType) {
-                    handleGenerate(generationType as "image" | "video" | "audio" | "music");
+                    handleGenerate(
+                      generationType as "image" | "video" | "audio" | "music",
+                    );
                   } else {
                     handleSend();
                   }
@@ -931,12 +996,45 @@ export function Chat() {
                 }
                 className="shrink-0"
               >
-                {generating ? (generationType ? "生成中..." : "发送中...") : <Send className="w-4 h-4" />}
+                {generating ? (
+                  generationType ? (
+                    "生成中..."
+                  ) : (
+                    "发送中..."
+                  )
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
               </Button>
             </div>
           </div>
         </Card>
       </div>
+
+      {/* Lightbox for image preview */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div className="relative max-w-full max-h-full">
+            <img
+              src={lightboxImage}
+              alt="Preview"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-2 right-2 text-white hover:bg-white/20"
+              onClick={() => setLightboxImage(null)}
+            >
+              <X className="w-6 h-6" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
