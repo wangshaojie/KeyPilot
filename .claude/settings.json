@@ -68,7 +68,14 @@
       "Bash(git push *)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:github.com)",
-      "Bash(curl -s \"https://raw.githubusercontent.com/OpenSenseNova/SenseNova-U1/main/examples/t2i/data/samples_infographic.jsonl\")"
+      "Bash(curl -s \"https://raw.githubusercontent.com/OpenSenseNova/SenseNova-U1/main/examples/t2i/data/samples_infographic.jsonl\")",
+      "Bash(git commit -m '修复切换模型后模型被重置的问题 *)",
+      "Bash(curl -s -X POST https://api.minimaxi.com/v1/image_generation -H 'Authorization: Bearer test' -H 'Content-Type: application/json' -d '{\"model\":\"image-01\",\"prompt\":\"test\",\"n\":1}')",
+      "Bash(lsof -ti:3001)",
+      "Bash(kill -9 30716)",
+      "Bash(taskkill //F //PID 30716)",
+      "Bash(taskkill //F //PID 11472)",
+      "Bash(taskkill //F //PID 40108)"
     ]
   }
 }

@@ -112,9 +112,9 @@ async function generateImage(params: GenerationParams, apiKey: string, baseUrl: 
   }
 
   // Add style for image-01-live
-  if (model === 'image-01-live' && params.style_type) {
+  if (model === 'image-01-live') {
     body.style = {
-      style_type: params.style_type,
+      style_type: params.style_type || '漫画',
       style_weight: params.style_weight || 0.8,
     }
   }
@@ -131,7 +131,19 @@ async function generateImage(params: GenerationParams, apiKey: string, baseUrl: 
   })
 
   const data = await response.json()
-  console.log(`[MiniMax] Image response status: ${response.status}, data:`, JSON.stringify(data).slice(0, 200))
+  console.log(`[MiniMax] Image response status: ${response.status}, data:`, JSON.stringify(data).slice(0, 500))
+  console.log(`[MiniMax] data.data:`, data.data)
+  console.log(`[MiniMax] data.data?.image_urls:`, data.data?.image_urls)
+  console.log(`[MiniMax] data.base_resp:`, data.base_resp)
+
+  // Check for API errors via base_resp
+  if (data.base_resp && data.base_resp.status_code !== 0) {
+    return {
+      success: false,
+      error: data.base_resp.status_msg || 'Image generation failed',
+      code: String(data.base_resp.status_code),
+    }
+  }
 
   if (!response.ok) {
     return {

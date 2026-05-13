@@ -610,7 +610,11 @@ export function Chat() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      if (generationType) {
+        handleGenerate(generationType as "image" | "video" | "audio" | "music");
+      } else {
+        handleSend();
+      }
     }
   };
 
@@ -619,6 +623,17 @@ export function Chat() {
   ) => {
     if (!input.trim() || !selectedKeyId) {
       toast.error("请输入提示词并选择密钥");
+      return;
+    }
+
+    // Check if selected model is a chat model (not a generation model)
+    const isChatModel =
+      CHAT_MODELS.some((m) => m.id === selectedModel);
+
+    if (isChatModel) {
+      toast.error(
+        `请选择生成模型，当前 ${selectedModel} 是聊天模型`,
+      );
       return;
     }
 
@@ -694,6 +709,10 @@ export function Chat() {
       }
 
       const result = await response.json();
+
+      console.log("[Generation] Full response:", result);
+      console.log("[Generation] result.data:", result.data);
+      console.log("[Generation] result.data?.urls:", result.data?.urls);
 
       // Extract URL from result
       const imageUrl =

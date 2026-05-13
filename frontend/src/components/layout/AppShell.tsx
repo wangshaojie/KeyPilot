@@ -20,11 +20,11 @@ export function AppShell({ children }: AppShellProps) {
         />
         <main
           className={cn(
-            "flex-1 h-[90vh] overflow-hidden p-6 transition-all duration-300",
+            "flex-1 h-[90vh] overflow-y p-6 transition-all duration-300",
             sidebarCollapsed ? "ml-16" : "ml-64",
           )}
         >
-          <div className="h-full overflow-hidden">{children}</div>
+          <div className="h-full overflow-y-auto">{children}</div>
         </main>
       </div>
       <footer className="h-8 border-t border-border bg-surface flex items-center px-4 text-xs text-text-muted">
