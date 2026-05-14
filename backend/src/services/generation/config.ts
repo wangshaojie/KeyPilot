@@ -11,10 +11,10 @@ export interface GenerationApiConfig {
 export const GENERATION_API_BASEURLS: Record<string, GenerationApiConfig | null> = {
   // MiniMax: Image/Video/Audio/Music all use api.minimaxi.com
   minimax: {
-    image: 'https://api.minimaxi.com/v1',
-    video: 'https://api.minimaxi.com/v1',
-    audio: 'https://api.minimaxi.com/v1',
-    music: 'https://api.minimaxi.com/v1',
+    image: 'https://api.minimaxi.com',
+    video: 'https://api.minimaxi.com',
+    audio: 'https://api.minimaxi.com',
+    music: 'https://api.minimaxi.com',
   },
 
   // OpenAI: DALL-E uses api.openai.com

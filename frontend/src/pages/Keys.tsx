@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Search, Edit2, Trash2, Zap, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,8 +14,12 @@ import { cn, formatDate, truncateKey } from '@/lib/utils'
 import { toast } from 'sonner'
 
 export function Keys() {
-  const { keys, testingKeys, addKey, updateKey, deleteKey, testKey, testAllKeys } = useKeyStore()
+  const { keys, testingKeys, addKey, updateKey, deleteKey, testKey, testAllKeys, fetchKeys } = useKeyStore()
   const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    fetchKeys()
+  }, [fetchKeys])
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [deletingKey, setDeletingKey] = useState<string | null>(null)

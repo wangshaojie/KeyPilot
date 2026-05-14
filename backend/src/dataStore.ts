@@ -87,7 +87,7 @@ async function initDb() {
   db.run(`
     CREATE TABLE IF NOT EXISTS audioHistory (
       id TEXT PRIMARY KEY,
-      text TEXT NOT NULL,
+      prompt TEXT NOT NULL,
       model TEXT NOT NULL,
       provider TEXT NOT NULL,
       keyId TEXT NOT NULL,
@@ -201,7 +201,7 @@ export interface VideoGeneration {
 
 export interface AudioGeneration {
   id: string
-  text: string
+  prompt: string
   model: string
   provider: string
   keyId: string
@@ -523,7 +523,7 @@ export const store = {
       if (!results.length) return []
       return results[0].values.map((row: any) => ({
         id: row[0],
-        text: row[1],
+        prompt: row[1],
         model: row[2],
         provider: row[3],
         keyId: row[4],
@@ -535,9 +535,9 @@ export const store = {
     add: async (audio: AudioGeneration): Promise<AudioGeneration> => {
       await waitDb()
       db!.run(
-        `INSERT INTO audioHistory (id, text, model, provider, keyId, audioUrl, duration, createdAt)
+        `INSERT INTO audioHistory (id, prompt, model, provider, keyId, audioUrl, duration, createdAt)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [audio.id, audio.text, audio.model, audio.provider, audio.keyId, audio.audioUrl, audio.duration || null, audio.createdAt]
+        [audio.id, audio.prompt, audio.model, audio.provider, audio.keyId, audio.audioUrl, audio.duration || null, audio.createdAt]
       )
       saveDb()
       return audio

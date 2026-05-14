@@ -328,6 +328,7 @@ export const useChatStore = create<ChatState>()(
             body: JSON.stringify({
               messages: conversation.messages,
               updatedAt: conversation.updatedAt,
+              title: conversation.title,
             }),
           })
         } catch (error) {

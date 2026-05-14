@@ -1,4 +1,5 @@
 import type { GenerationProvider, GenerationParams, GenerationResult, GenerationError } from '../base'
+import { processImages } from '../../../lib/imageProcessor'
 
 export const senseNovaProvider: GenerationProvider = {
   name: 'sensenova',
@@ -46,11 +47,11 @@ async function generateImage(params: GenerationParams, apiKey: string, baseUrl: 
     const body: any = {
       model,
       prompt,
-      size: options.image_size || '2752x1536',
-      n: options.image_num || 1,
+      size: options.size || '2752x1536',
+      n: options.n || 1,
     }
 
-    console.log(`[SenseNova] Image request to ${baseUrl}/images/generations:`, { model, prompt: prompt?.slice(0, 50) })
+    console.log(`[SenseNova] Image request to ${baseUrl}/images/generations:`, { model, prompt: prompt?.slice(0, 50), size: body.size, n: body.n })
 
     const response = await fetch(`${baseUrl}/images/generations`, {
       method: 'POST',
@@ -73,14 +74,35 @@ async function generateImage(params: GenerationParams, apiKey: string, baseUrl: 
     }
 
     if (data.data?.[0]?.url) {
-      return {
-        success: true,
-        data: {
-          urls: data.data.map((img: any) => img.url),
-        },
-        cost: 0,
-        provider: 'sensenova',
-        model,
+      // Download images, convert to webp, and return local URLs
+      const originalUrls = data.data.map((img: any) => img.url)
+      console.log(`[SenseNova] Received ${originalUrls.length} image URLs, converting to webp...`)
+
+      try {
+        const localUrls = await processImages(originalUrls)
+        console.log(`[SenseNova] Converted to local URLs:`, localUrls)
+
+        return {
+          success: true,
+          data: {
+            urls: localUrls,
+          },
+          cost: 0,
+          provider: 'sensenova',
+          model,
+        }
+      } catch (error: any) {
+        console.error(`[SenseNova] Failed to convert images:`, error)
+        // Fall back to original URLs if conversion fails
+        return {
+          success: true,
+          data: {
+            urls: originalUrls,
+          },
+          cost: 0,
+          provider: 'sensenova',
+          model,
+        }
       }
     }
 
@@ -94,8 +116,8 @@ async function generateImage(params: GenerationParams, apiKey: string, baseUrl: 
   }
 
   if (model === 'wanx2.1') {
-    body.image_size = options.image_size || '1024x1024'
-    body.image_num = options.image_num || 1
+    body.size = options.size || '1024x1024'
+    body.n = options.n || 1
   }
 
   console.log(`[SenseNova] Image request to ${baseUrl}/image_generation:`, { model, prompt: prompt?.slice(0, 50) })

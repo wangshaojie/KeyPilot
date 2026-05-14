@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import { apiClient } from '@/lib/api'
 import type { APIKey, SpeedTestResult } from '@/lib/api'
 import { generateId } from '@/lib/utils'
@@ -21,8 +20,7 @@ interface KeyState {
 }
 
 export const useKeyStore = create<KeyState>()(
-  persist(
-    (set, get) => ({
+  (set, get) => ({
       keys: [],
       loading: false,
       error: null,
@@ -132,10 +130,5 @@ export const useKeyStore = create<KeyState>()(
       },
 
       clearError: () => set({ error: null }),
-    }),
-    {
-      name: 'keypilot-keys',
-      partialize: (state) => ({ keys: state.keys }),
-    }
-  )
+    })
 )

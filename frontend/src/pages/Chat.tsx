@@ -18,7 +18,6 @@ import {
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -32,11 +31,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useChatStore } from "@/stores/useChatStore";
 import { useKeyStore } from "@/stores/useKeyStore";
 import {
-  CHAT_MODELS,
-  IMAGE_MODELS,
-  VIDEO_MODELS,
-  AUDIO_MODELS,
-  MUSIC_MODELS,
   PROVIDERS,
   type ProviderId,
 } from "@/lib/constants";
@@ -46,6 +40,85 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+
+// Helper to infer model type from model name
+function inferModelType(modelId: string): "image" | "video" | "audio" | "music" | null {
+  const lower = modelId.toLowerCase();
+  if (lower.includes("image") || lower.includes("u1-fast") || lower.includes("wanx") || lower.includes("dall") || lower.includes("imagen")) {
+    return "image";
+  }
+  if (lower.includes("video") || lower.includes("hailuo")) {
+    return "video";
+  }
+  if (lower.includes("audio") || lower.includes("speech") || lower.includes("tts")) {
+    return "audio";
+  }
+  if (lower.includes("music")) {
+    return "music";
+  }
+  return null;
+}
+
+// Get image size param name for the model (some providers use size, some use aspect_ratio)
+function getImageSizeParam(model: string): 'aspect_ratio' | 'size' | null {
+  const lower = model.toLowerCase();
+  // MiniMax uses aspect_ratio
+  if (lower.includes('image-01')) {
+    return 'aspect_ratio';
+  }
+  // SenseNova uses size
+  if (lower.includes('sensenova') || lower.includes('u1-fast')) {
+    return 'size';
+  }
+  return null;
+}
+
+// Get max image count for a model
+function getMaxImageCount(model: string): number {
+  const lower = model.toLowerCase();
+  // SenseNova sensenova-u1-fast only supports n=1
+  if (lower.includes('sensenova') && lower.includes('u1-fast')) {
+    return 1;
+  }
+  return 9; // Default max
+}
+
+// Check if model supports prompt_optimizer and aigc_watermark (MiniMax image-01/image-01-live only)
+function modelSupportsAdvancedOptions(model: string): boolean {
+  const lower = model.toLowerCase();
+  // MiniMax image models support these options
+  if (lower.includes('image-01')) {
+    return true;
+  }
+  return false;
+}
+
+// Map API error messages to user-friendly Chinese messages
+function getErrorMessage(error: string, code?: string): string {
+  const errorLower = error.toLowerCase();
+
+  // MiniMax error messages
+  if (errorLower.includes("new_sensitive") || code === "1026") {
+    return "内容涉及敏感信息，请修改提示词后重试";
+  }
+  if (errorLower.includes("rate") || code === "1002") {
+    return "请求过于频繁，请稍后再试";
+  }
+  if (errorLower.includes("auth") || code === "1004") {
+    return "API 密钥验证失败，请检查密钥是否正确";
+  }
+  if (errorLower.includes("balance") || code === "1008") {
+    return "账户余额不足，请充值后重试";
+  }
+  if (errorLower.includes("invalidapi") || code === "2049") {
+    return "无效的 API 密钥，请检查密钥配置";
+  }
+  if (errorLower.includes("parameter") || code === "2013") {
+    return "参数错误，请检查输入参数";
+  }
+
+  return error;
+}
 
 const MarkdownContent = memo(function MarkdownContent({
   content,
@@ -193,23 +266,70 @@ const MarkdownContent = memo(function MarkdownContent({
   );
 });
 
-// Check if content is a direct image URL (not markdown syntax)
-function isImageUrl(content: string): boolean {
-  if (!content) return false;
-  // Check if it's a direct URL to an image
-  return /^(https?:\/\/|\/\/).+\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(
-    content,
+// Image grid component that adapts layout based on image count
+const ImageGrid = memo(function ImageGrid({
+  urls,
+  onImageClick,
+}: {
+  urls: string[];
+  onImageClick?: (url: string) => void;
+}) {
+  const count = urls.length;
+
+  // Layout based on count
+  const getGridClass = () => {
+    switch (count) {
+      case 1:
+        return 'w-full max-w-2xl';
+      case 2:
+        return 'grid grid-cols-2 gap-2 w-full max-w-xl';
+      case 3:
+        return 'grid grid-cols-2 gap-2 w-full max-w-xl';
+      case 4:
+        return 'grid grid-cols-2 gap-2 w-full max-w-xl';
+      default:
+        return 'grid grid-cols-3 gap-2 w-full';
+    }
+  };
+
+  return (
+    <div className={cn("my-2", getGridClass())}>
+      {urls.map((url, idx) => (
+        <div
+          key={idx}
+          className={cn(
+            "relative rounded-lg overflow-hidden bg-surface-elevated",
+            count === 1 && "w-full",
+            count === 3 && idx === 0 && "col-span-2",
+            count >= 3 && "aspect-square"
+          )}
+        >
+          <img
+            src={url}
+            alt={`Generated image ${idx + 1}`}
+            className={cn(
+              "w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity",
+              count === 1 && "max-h-[500px] object-contain"
+            )}
+            style={count === 1 ? { maxHeight: '500px' } : {}}
+            onClick={() => onImageClick?.(url)}
+          />
+        </div>
+      ))}
+    </div>
   );
-}
+});
 
 const MessageItem = memo(function MessageItem({
   message,
   onCopy,
   copiedId,
+  onImageClick,
 }: {
   message: any;
   onCopy: (content: string, id: string) => void;
   copiedId: string | null;
+  onImageClick?: (url: string) => void;
 }) {
   const isUser = message.role === "user";
   return (
@@ -272,22 +392,13 @@ const MessageItem = memo(function MessageItem({
           ) : message.isError ? (
             // Error state
             <span className="text-error">{message.content}</span>
-          ) : message.generationType === "image" &&
-            isImageUrl(message.content) ? (
-            <img
-              src={message.content}
-              alt="Generated image"
-              className="max-w-full h-auto rounded-lg my-2 cursor-pointer hover:opacity-90 transition-opacity"
-              style={{ maxHeight: "600px", objectFit: "contain" }}
-              onClick={() => setLightboxImage(message.content)}
-            />
           ) : message.generationType === "image" && message.content ? (
-            <img
+            <ImageGrid urls={message.content.split('\n').filter(Boolean)} onImageClick={onImageClick} />
+          ) : message.generationType === "audio" && message.content ? (
+            <audio
               src={message.content}
-              alt="Generated image"
-              className="max-w-full h-auto rounded-lg my-2 cursor-pointer hover:opacity-90 transition-opacity"
-              style={{ maxHeight: "600px", objectFit: "contain" }}
-              onClick={() => setLightboxImage(message.content)}
+              controls
+              className="w-full max-w-md my-2"
             />
           ) : (
             <MarkdownContent content={message.content} />
@@ -368,17 +479,21 @@ export function Chat() {
   // Note: streamingContent is now subscribed inside StreamingMessage component
   // to avoid triggering Chat component re-renders during streaming
 
-  const { keys } = useKeyStore();
+  const { keys, fetchKeys } = useKeyStore();
 
   const [input, setInput] = useState("");
-  const [selectedKeyId, setSelectedKeyId] = useState<string>("");
-  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [selectedKeyId, setSelectedKeyId] = useState<string>(() => localStorage.getItem('keypilot-selectedKeyId') || '');
+  const [selectedModel, setSelectedModel] = useState<string>(() => localStorage.getItem('keypilot-selectedModel') || '');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [generationType, setGenerationType] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  const [imageSize, setImageSize] = useState<string>("2048x2048");
+  // Image generation params
+  const [imageSize, setImageSize] = useState<string>("2752x1536");
   const [imageNum, setImageNum] = useState<number>(1);
+  const [promptOptimizer, setPromptOptimizer] = useState<boolean>(false);
+  const [aigcWatermark, setAigcWatermark] = useState<boolean>(false);
+  const [styleType, setStyleType] = useState<string>("漫画");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -414,10 +529,24 @@ export function Chat() {
     }
   }, []);
 
-  // Fetch conversations from backend on mount
+  // Fetch conversations and keys from backend on mount
   useEffect(() => {
     fetchConversations();
+    fetchKeys();
   }, []);
+
+  // Persist selected key and model to localStorage
+  useEffect(() => {
+    if (selectedKeyId) {
+      localStorage.setItem('keypilot-selectedKeyId', selectedKeyId);
+    }
+  }, [selectedKeyId]);
+
+  useEffect(() => {
+    if (selectedModel) {
+      localStorage.setItem('keypilot-selectedModel', selectedModel);
+    }
+  }, [selectedModel]);
 
   // Restore active conversation's messages when activeConversationId is restored from persistence
   useEffect(() => {
@@ -448,45 +577,13 @@ export function Chat() {
     prevSelectedKeyIdRef.current = selectedKeyId;
 
     const key = keys.find((k) => k.id === selectedKeyId);
-    if (!key) return;
+    if (!key || !key.models || key.models.length === 0) return;
 
-    if (generationType) {
-      // Generation mode - select first model of the generation type
-      if (key.provider === "custom" && key.models && key.models.length > 0) {
-        setSelectedModel(key.models[0]);
-      } else {
-        const providerModels =
-          PROVIDERS[key.provider as keyof typeof PROVIDERS]?.models || [];
-        const genModels = providerModels.filter(
-          (m: any) => m.type === generationType,
-        );
-        if (genModels.length > 0) {
-          setSelectedModel(genModels[0].id);
-        }
-      }
-    } else {
-      // Chat mode - select first chat model only if current model doesn't match provider
-      if (key.provider === "custom" && key.models && key.models.length > 0) {
-        if (!key.models.includes(selectedModel)) {
-          setSelectedModel(key.models[0]);
-        }
-      } else {
-        const allModelsForProvider = [
-          ...CHAT_MODELS.filter((m) => m.provider === key.provider),
-          ...IMAGE_MODELS.filter((m) => m.provider === key.provider),
-          ...VIDEO_MODELS.filter((m) => m.provider === key.provider),
-          ...AUDIO_MODELS.filter((m) => m.provider === key.provider),
-          ...MUSIC_MODELS.filter((m) => m.provider === key.provider),
-        ];
-        const currentModelValid = allModelsForProvider.some(
-          (m) => m.id === selectedModel,
-        );
-        if (allModelsForProvider.length > 0 && !currentModelValid) {
-          setSelectedModel(allModelsForProvider[0].id);
-        }
-      }
+    // Use the key's configured models - if current model not in list, select first
+    if (!key.models.includes(selectedModel)) {
+      setSelectedModel(key.models[0]);
     }
-  }, [selectedKeyId, generationType]);
+  }, [selectedKeyId]);
 
   // Reset to text mode when switching conversations
   useEffect(() => {
@@ -510,6 +607,12 @@ export function Chat() {
     ) {
       console.log("[Chat] Setting generationType to: image");
       setGenerationType("image");
+      // Reset default image size based on model
+      if (modelLower.includes("sensenova") || modelLower.includes("u1-fast")) {
+        setImageSize("2272x1824"); // SenseNova 5:4
+      } else {
+        setImageSize("1:1"); // MiniMax uses aspect ratios
+      }
     } else if (modelLower.includes("video") || modelLower.includes("hailuo")) {
       console.log("[Chat] Setting generationType to: video");
       setGenerationType("video");
@@ -581,16 +684,12 @@ export function Chat() {
       return;
     }
 
-    // Check if selected model is a generation model
-    const modelInfo =
-      IMAGE_MODELS.find((m) => m.id === selectedModel) ||
-      VIDEO_MODELS.find((m) => m.id === selectedModel) ||
-      AUDIO_MODELS.find((m) => m.id === selectedModel) ||
-      MUSIC_MODELS.find((m) => m.id === selectedModel);
+    // Check if selected model is a generation model (chat models return null)
+    const modelType = inferModelType(selectedModel);
 
-    if (modelInfo) {
+    if (modelType !== null) {
       toast.error(
-        `请选择聊天模型，${modelInfo.name} 是生成模型，需要从下拉列表中选择聊天模型`,
+        `请选择聊天模型，${selectedModel} 是生成模型，需要从下拉列表中选择聊天模型`,
       );
       return;
     }
@@ -613,25 +712,11 @@ export function Chat() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      // Check if model is a generation model (regardless of generationType state)
-      const isGenerationModel =
-        IMAGE_MODELS.some((m) => m.id === selectedModel) ||
-        VIDEO_MODELS.some((m) => m.id === selectedModel) ||
-        AUDIO_MODELS.some((m) => m.id === selectedModel) ||
-        MUSIC_MODELS.some((m) => m.id === selectedModel);
+      // Check if model is a generation model
+      const modelType = inferModelType(selectedModel);
 
-      if (isGenerationModel) {
-        // Determine the type from the model
-        const modelLower = selectedModel.toLowerCase();
-        let type: "image" | "video" | "audio" | "music" = "image";
-        if (modelLower.includes("video") || modelLower.includes("hailuo")) {
-          type = "video";
-        } else if (modelLower.includes("audio") || modelLower.includes("speech") || modelLower.includes("tts")) {
-          type = "audio";
-        } else if (modelLower.includes("music")) {
-          type = "music";
-        }
-        handleGenerate(type);
+      if (modelType !== null) {
+        handleGenerate(modelType);
       } else {
         handleSend();
       }
@@ -647,10 +732,9 @@ export function Chat() {
     }
 
     // Check if selected model is a chat model (not a generation model)
-    const isChatModel =
-      CHAT_MODELS.some((m) => m.id === selectedModel);
+    const modelType = inferModelType(selectedModel);
 
-    if (isChatModel) {
+    if (modelType === null) {
       toast.error(
         `请选择生成模型，当前 ${selectedModel} 是聊天模型`,
       );
@@ -693,15 +777,25 @@ export function Chat() {
     addMessages([loadingMessage]);
 
     try {
-      const requestBody: Record<string, string | number> = {
+      const requestBody: Record<string, string | number | boolean> = {
         keyId: selectedKeyId,
         model: selectedModel,
         prompt,
       };
-      // Add image_size for image generation
+      // Add image params for image generation
       if (type === "image") {
-        requestBody.image_size = imageSize;
-        requestBody.image_num = imageNum;
+        const sizeParam = getImageSizeParam(selectedModel);
+        if (sizeParam === 'aspect_ratio') {
+          requestBody.aspect_ratio = imageSize;
+        } else if (sizeParam === 'size') {
+          requestBody.size = imageSize;
+        }
+        requestBody.n = imageNum;
+        requestBody.prompt_optimizer = promptOptimizer;
+        requestBody.aigc_watermark = aigcWatermark;
+        if (selectedModel === 'image-01-live') {
+          requestBody.style_type = styleType;
+        }
       }
       const response = await fetch(`/api/generation/${type}`, {
         method: "POST",
@@ -716,10 +810,11 @@ export function Chat() {
         console.error("[Generation] Error response:", errorData);
 
         // Remove loading message and show error
+        const friendlyError = getErrorMessage(errorData.error || errorData.message || "Unknown error");
         const errorMessage = {
           id: `gen-error-${Date.now()}`,
           role: "assistant" as const,
-          content: `生成失败: ${errorData.error || errorData.message || "Unknown error"}`,
+          content: `生成失败: ${friendlyError}`,
           timestamp: new Date().toISOString(),
           generationType: type,
           isError: true,
@@ -730,6 +825,7 @@ export function Chat() {
           isError: true,
           isLoading: false,
         });
+        toast.error(friendlyError);
         setGenerating(false);
         return;
       }
@@ -740,20 +836,47 @@ export function Chat() {
       console.log("[Generation] result.data:", result.data);
       console.log("[Generation] result.data?.urls:", result.data?.urls);
 
-      // Extract URL from result
-      const imageUrl =
-        result.data?.urls?.[0] ||
-        result.data?.base64?.[0] ||
-        result.url ||
-        result.text ||
-        JSON.stringify(result);
+      // Check if generation failed (even with 200 status)
+      if (!result.success) {
+        const friendlyError = getErrorMessage(result.error || "生成失败", result.code);
+        updateMessage(loadingMessageId, {
+          content: friendlyError,
+          isLoading: false,
+          isError: true,
+        });
+        toast.error(friendlyError);
+        setGenerating(false);
+        return;
+      }
+
+      // Extract URLs from result (may have multiple images)
+      const urls = result.data?.urls?.length
+        ? result.data.urls
+        : result.data?.base64?.length
+        ? result.data.base64
+        : [];
+
+      // If no URLs found, show error
+      if (urls.length === 0) {
+        updateMessage(loadingMessageId, {
+          content: JSON.stringify(result),
+          isLoading: false,
+          isError: true,
+        });
+        toast.error("生成失败：未返回有效图片");
+        setGenerating(false);
+        return;
+      }
+
+      // Join multiple URLs with newline for storage
+      const content = urls.join('\n');
 
       console.log("[Generation] Result:", result);
-      console.log("[Generation] Extracted imageUrl:", imageUrl);
+      console.log("[Generation] Extracted URLs count:", urls.length);
 
       // Replace loading message with result
       updateMessage(loadingMessageId, {
-        content: imageUrl,
+        content,
         isLoading: false,
       });
 
@@ -889,70 +1012,34 @@ export function Chat() {
             <Label className="text-xs text-text-muted mb-1 block">模型</Label>
             {(() => {
               const selectedKey = keys.find((k) => k.id === selectedKeyId);
-              const isCustom = selectedKey?.provider === "custom";
+              const keyModels = selectedKey?.models;
 
-              // Custom provider: use stored models or input
-              if (isCustom) {
-                const hasModels =
-                  selectedKey?.models && selectedKey.models.length > 0;
-                if (hasModels) {
-                  return (
-                    <Select
-                      value={selectedModel}
-                      onValueChange={setSelectedModel}
-                    >
-                      <SelectTrigger className="w-full cursor-pointer">
-                        <SelectValue placeholder="请选择模型" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {selectedKey!.models!.map((model) => (
-                          <SelectItem key={model} value={model}>
-                            {model}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  );
-                }
+              // If key has models configured, show them
+              if (keyModels && keyModels.length > 0) {
                 return (
-                  <Input
+                  <Select
                     value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    placeholder="输入模型名称"
-                    className="w-full"
-                  />
+                    onValueChange={setSelectedModel}
+                  >
+                    <SelectTrigger className="w-full cursor-pointer">
+                      <SelectValue placeholder="请选择模型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {keyModels.map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 );
               }
 
+              // No models configured for this key
               return (
-                <Select value={selectedModel} onValueChange={setSelectedModel}>
-                  <SelectTrigger className="w-full cursor-pointer">
-                    <SelectValue placeholder="请选择模型" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[
-                      ...CHAT_MODELS.filter(
-                        (m) => m.provider === selectedKey?.provider,
-                      ),
-                      ...IMAGE_MODELS.filter(
-                        (m) => m.provider === selectedKey?.provider,
-                      ),
-                      ...VIDEO_MODELS.filter(
-                        (m) => m.provider === selectedKey?.provider,
-                      ),
-                      ...AUDIO_MODELS.filter(
-                        (m) => m.provider === selectedKey?.provider,
-                      ),
-                      ...MUSIC_MODELS.filter(
-                        (m) => m.provider === selectedKey?.provider,
-                      ),
-                    ].map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        {model.name} ({model.type})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="text-sm text-text-muted py-2">
+                  该密钥未配置模型，请在 Keys 页面编辑
+                </div>
               );
             })()}
           </div>
@@ -994,6 +1081,7 @@ export function Chat() {
                       message={message}
                       onCopy={handleCopy}
                       copiedId={copiedId}
+                      onImageClick={setLightboxImage}
                     />
                   ))}
                   {streaming && <StreamingMessage />}
@@ -1016,64 +1104,102 @@ export function Chat() {
                 rows={3}
               />
               <div className="flex items-center justify-between px-5 pb-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   {input.length > 0 && (
                     <span className="text-[11px] text-text-muted/40">{input.length} 字符</span>
                   )}
-                  {/* Image size selector for image models */}
-                  {IMAGE_MODELS.some((m) => m.id === selectedModel) && (
-                    <select
-                      value={imageSize}
-                      onChange={(e) => setImageSize(e.target.value)}
-                      className="bg-surface-elevated border border-border/50 rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/30"
-                    >
-                      <option value="2048x2048">1:1 (2048×2048)</option>
-                      <option value="1664x2496">2:3 (1664×2496)</option>
-                      <option value="2496x1664">3:2 (2496×1664)</option>
-                      <option value="1760x2368">3:4 (1760×2368)</option>
-                      <option value="2368x1760">4:3 (2368×1760)</option>
-                      <option value="1824x2272">4:5 (1824×2272)</option>
-                      <option value="2272x1824">5:4 (2272×1824)</option>
-                      <option value="2752x1536">16:9 (2752×1536)</option>
-                      <option value="1536x2752">9:16 (1536×2752)</option>
-                      <option value="3072x1376">21:9 (3072×1376)</option>
-                      <option value="1344x3136">9:21 (1344×3136)</option>
-                    </select>
-                  )}
-                  {/* Image number selector for image models */}
-                  {IMAGE_MODELS.some((m) => m.id === selectedModel) && (
-                    <select
-                      value={imageNum}
-                      onChange={(e) => setImageNum(Number(e.target.value))}
-                      className="bg-surface-elevated border border-border/50 rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/30"
-                    >
-                      <option value={1}>1 张</option>
-                      <option value={2}>2 张</option>
-                      <option value={3}>3 张</option>
-                      <option value={4}>4 张</option>
-                    </select>
+                  {/* Image params for image models */}
+                  {inferModelType(selectedModel) === 'image' && (
+                    <>
+                      <select
+                        value={imageSize}
+                        onChange={(e) => setImageSize(e.target.value)}
+                        className="bg-surface-elevated border border-border/50 rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/30"
+                      >
+                        {getImageSizeParam(selectedModel) === 'size' ? (
+                          // SenseNova uses pixel sizes
+                          <>
+                            <option value="2048x2048">1:1 (2048×2048)</option>
+                            <option value="1664x2496">2:3 (1664×2496)</option>
+                            <option value="2496x1664">3:2 (2496×1664)</option>
+                            <option value="1760x2368">3:4 (1760×2368)</option>
+                            <option value="2368x1760">4:3 (2368×1760)</option>
+                            <option value="1824x2272">4:5 (1824×2272)</option>
+                            <option value="2272x1824">5:4 (2272×1824)</option>
+                            <option value="2752x1536">16:9 (2752×1536)</option>
+                            <option value="1536x2752">9:16 (1536×2752)</option>
+                            <option value="3072x1376">21:9 (3072×1376)</option>
+                            <option value="1344x3136">9:21 (1344×3136)</option>
+                          </>
+                        ) : (
+                          // MiniMax uses aspect ratios
+                          <>
+                            <option value="1:1">1:1 (1024×1024)</option>
+                            <option value="16:9">16:9 (1280×720)</option>
+                            <option value="4:3">4:3 (1152×864)</option>
+                            <option value="3:2">3:2 (1248×832)</option>
+                            <option value="2:3">2:3 (832×1248)</option>
+                            <option value="3:4">3:4 (864×1152)</option>
+                            <option value="9:16">9:16 (720×1280)</option>
+                            <option value="21:9">21:9 (1344×576)</option>
+                          </>
+                        )}
+                      </select>
+                      <select
+                        value={imageNum}
+                        onChange={(e) => setImageNum(Number(e.target.value))}
+                        className="bg-surface-elevated border border-border/50 rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/30"
+                      >
+                        {Array.from({ length: getMaxImageCount(selectedModel) }, (_, i) => i + 1).map((n) => (
+                          <option key={n} value={n}>{n} 张</option>
+                        ))}
+                      </select>
+                      {/* Style selector for image-01-live */}
+                      {selectedModel === 'image-01-live' && (
+                        <select
+                          value={styleType}
+                          onChange={(e) => setStyleType(e.target.value)}
+                          className="bg-surface-elevated border border-border/50 rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/30"
+                        >
+                          <option value="漫画">漫画</option>
+                          <option value="元气">元气</option>
+                          <option value="中世纪">中世纪</option>
+                          <option value="水彩">水彩</option>
+                        </select>
+                      )}
+                      {/* MiniMax advanced options */}
+                      {modelSupportsAdvancedOptions(selectedModel) && (
+                        <>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={promptOptimizer}
+                              onChange={(e) => setPromptOptimizer(e.target.checked)}
+                              className="rounded border-border text-accent focus:ring-accent"
+                            />
+                            <span className="text-xs text-text-secondary">优化提示词</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={aigcWatermark}
+                              onChange={(e) => setAigcWatermark(e.target.checked)}
+                              className="rounded border-border text-accent focus:ring-accent"
+                            />
+                            <span className="text-xs text-text-secondary">水印</span>
+                          </label>
+                        </>
+                      )}
+                    </>
                   )}
                 </div>
                 <Button
                   onClick={() => {
-                    // Check if model is a generation model (regardless of generationType state)
-                    const isGenerationModel =
-                      IMAGE_MODELS.some((m) => m.id === selectedModel) ||
-                      VIDEO_MODELS.some((m) => m.id === selectedModel) ||
-                      AUDIO_MODELS.some((m) => m.id === selectedModel) ||
-                      MUSIC_MODELS.some((m) => m.id === selectedModel);
+                    // Check if model is a generation model
+                    const modelType = inferModelType(selectedModel);
 
-                    if (isGenerationModel) {
-                      const modelLower = selectedModel.toLowerCase();
-                      let type: "image" | "video" | "audio" | "music" = "image";
-                      if (modelLower.includes("video") || modelLower.includes("hailuo")) {
-                        type = "video";
-                      } else if (modelLower.includes("audio") || modelLower.includes("speech") || modelLower.includes("tts")) {
-                        type = "audio";
-                      } else if (modelLower.includes("music")) {
-                        type = "music";
-                      }
-                      handleGenerate(type);
+                    if (modelType !== null) {
+                      handleGenerate(modelType);
                     } else {
                       handleSend();
                     }
@@ -1090,22 +1216,12 @@ export function Chat() {
                   {generating ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      {IMAGE_MODELS.some((m) => m.id === selectedModel) ||
-                      VIDEO_MODELS.some((m) => m.id === selectedModel) ||
-                      AUDIO_MODELS.some((m) => m.id === selectedModel) ||
-                      MUSIC_MODELS.some((m) => m.id === selectedModel)
-                        ? "生成中..."
-                        : "发送中..."}
+                      {inferModelType(selectedModel) !== null ? "生成中..." : "发送中..."}
                     </>
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      {IMAGE_MODELS.some((m) => m.id === selectedModel) ||
-                      VIDEO_MODELS.some((m) => m.id === selectedModel) ||
-                      AUDIO_MODELS.some((m) => m.id === selectedModel) ||
-                      MUSIC_MODELS.some((m) => m.id === selectedModel)
-                        ? "生成"
-                        : "发送"}
+                      {inferModelType(selectedModel) !== null ? "生成" : "发送"}
                     </>
                   )}
                 </Button>
@@ -1116,29 +1232,53 @@ export function Chat() {
       </div>
 
       {/* Lightbox for image preview */}
-      {lightboxImage && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-          onClick={() => setLightboxImage(null)}
-        >
-          <div className="relative max-w-full max-h-full">
-            <img
-              src={lightboxImage}
-              alt="Preview"
-              className="max-w-full max-h-[90vh] object-contain rounded-lg"
-              onClick={(e) => e.stopPropagation()}
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-2 right-2 text-white hover:bg-white/20"
-              onClick={() => setLightboxImage(null)}
-            >
-              <X className="w-6 h-6" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <Lightbox imageUrl={lightboxImage} onClose={() => setLightboxImage(null)} />
     </div>
   );
 }
+
+// Lightbox component for image preview
+const Lightbox = memo(function Lightbox({
+  imageUrl,
+  onClose,
+}: {
+  imageUrl: string | null;
+  onClose: () => void;
+}) {
+  // Handle escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && imageUrl) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [imageUrl, onClose]);
+
+  if (!imageUrl) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div className="relative max-w-full max-h-full">
+        <img
+          src={imageUrl}
+          alt="Preview"
+          className="max-w-full max-h-[90vh] object-contain rounded-lg"
+          onClick={(e) => e.stopPropagation()}
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-2 right-2 text-white/70 hover:text-white hover:bg-white/10"
+          onClick={onClose}
+        >
+          <X className="w-6 h-6" />
+        </Button>
+      </div>
+    </div>
+  );
+});

@@ -64,7 +64,7 @@ export const miniMaxProvider: GenerationProvider = {
     }
 
     try {
-      const response = await fetch(`${baseUrl}/image_generation?task_id=${taskId}`, {
+      const response = await fetch(`${baseUrl}/v1/image_generation?task_id=${taskId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -99,7 +99,18 @@ export const miniMaxProvider: GenerationProvider = {
 
 // Image generation (sync for image-01)
 async function generateImage(params: GenerationParams, apiKey: string, baseUrl: string): Promise<GenerationResult | GenerationError> {
-  const { model, prompt, aspect_ratio = '1:1', n = 1, response_format = 'url', prompt_optimizer = false, aigc_watermark = false } = params
+  const {
+    model,
+    prompt,
+    aspect_ratio = '1:1',
+    width,
+    height,
+    n = 1,
+    response_format = 'url',
+    seed,
+    prompt_optimizer = false,
+    aigc_watermark = false,
+  } = params
 
   const body: any = {
     model,
@@ -111,6 +122,12 @@ async function generateImage(params: GenerationParams, apiKey: string, baseUrl: 
     aigc_watermark,
   }
 
+  // Add width/height for image-01 (takes precedence over aspect_ratio)
+  if (model === 'image-01' && width && height) {
+    body.width = width
+    body.height = height
+  }
+
   // Add style for image-01-live
   if (model === 'image-01-live') {
     body.style = {
@@ -119,9 +136,14 @@ async function generateImage(params: GenerationParams, apiKey: string, baseUrl: 
     }
   }
 
-  console.log(`[MiniMax] Image request to ${baseUrl}/image_generation:`, { model, prompt: prompt.slice(0, 50) })
+  // Add seed if provided
+  if (seed !== undefined) {
+    body.seed = seed
+  }
 
-  const response = await fetch(`${baseUrl}/image_generation`, {
+  console.log(`[MiniMax] Image request to ${baseUrl}/v1/image_generation:`, { model, prompt: prompt.slice(0, 50), aspect_ratio, n })
+
+  const response = await fetch(`${baseUrl}/v1/image_generation`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -132,9 +154,6 @@ async function generateImage(params: GenerationParams, apiKey: string, baseUrl: 
 
   const data = await response.json()
   console.log(`[MiniMax] Image response status: ${response.status}, data:`, JSON.stringify(data).slice(0, 500))
-  console.log(`[MiniMax] data.data:`, data.data)
-  console.log(`[MiniMax] data.data?.image_urls:`, data.data?.image_urls)
-  console.log(`[MiniMax] data.base_resp:`, data.base_resp)
 
   // Check for API errors via base_resp
   if (data.base_resp && data.base_resp.status_code !== 0) {
@@ -153,7 +172,7 @@ async function generateImage(params: GenerationParams, apiKey: string, baseUrl: 
     }
   }
 
-  // For image-01, response is sync
+  // For image-01/image-01-live, response may include immediate results
   if (data.data?.image_urls || data.data?.image_base64) {
     return {
       success: true,
@@ -167,7 +186,7 @@ async function generateImage(params: GenerationParams, apiKey: string, baseUrl: 
     }
   }
 
-  // For async tasks (some models may return task_id)
+  // For async tasks (returns task id for polling)
   if (data.id) {
     return {
       success: true,
@@ -224,9 +243,18 @@ async function generateVideo(params: GenerationParams, apiKey: string, baseUrl: 
 
 // Audio generation (TTS)
 async function generateAudio(params: GenerationParams, apiKey: string, baseUrl: string): Promise<GenerationResult | GenerationError> {
-  const { model, prompt, voice = 'English_expressive_narrator', speed = 1.0, volume = 1.0, pitch = 0, format = 'mp3' } = params
+  const { model, prompt } = params
+  const options = params as any
 
-  const response = await fetch(`${baseUrl}/audio_generation`, {
+  const voice_id = options.voice_id || 'male-qn-qingse'
+  const speed = options.speed ?? 1
+  const vol = options.vol ?? 1
+  const pitch = options.pitch ?? 0
+  const format = options.format || 'mp3'
+  const sample_rate = options.sample_rate || 32000
+  const bitrate = options.bitrate || 128000
+
+  const response = await fetch(`${baseUrl}/v1/t2a_v2`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -235,30 +263,68 @@ async function generateAudio(params: GenerationParams, apiKey: string, baseUrl: 
     body: JSON.stringify({
       model,
       text: prompt,
-      voice,
-      speed,
-      volume,
-      pitch,
-      format,
+      stream: false,
+      voice_setting: {
+        voice_id,
+        speed,
+        vol,
+        pitch,
+      },
+      audio_setting: {
+        sample_rate,
+        bitrate,
+        format,
+        channel: 1,
+      },
     }),
   })
 
-  const data = await response.json()
+  let data: any
+  try {
+    data = await response.json()
+  } catch (e) {
+    const text = await response.text()
+    console.log(`[MiniMax] Audio response not JSON:`, response.status, text?.slice(0, 500))
+    return {
+      success: false,
+      error: `API error: ${response.status} ${response.statusText}`,
+      code: String(response.status),
+    }
+  }
+
+  console.log(`[MiniMax] Audio response status: ${response.status}`)
+  console.log(`[MiniMax] Audio response keys:`, Object.keys(data))
+  console.log(`[MiniMax] Audio data:`, JSON.stringify(data).slice(0, 1000))
 
   if (!response.ok) {
     return {
       success: false,
-      error: data.error?.message || 'Audio generation failed',
-      code: String(data.error?.status_code),
+      error: data.base_resp?.status_msg || data.error?.message || 'Audio generation failed',
+      code: String(data.base_resp?.status_code),
     }
   }
 
-  if (data.data?.audio_url || data.data?.audio_base64) {
+  // Check for API errors via base_resp
+  if (data.base_resp && data.base_resp.status_code !== 0) {
+    return {
+      success: false,
+      error: data.base_resp.status_msg || 'Audio generation failed',
+      code: String(data.base_resp.status_code),
+    }
+  }
+
+  // For non-streaming, status=2 means completed
+  if (data.data?.audio) {
+    // Audio is hex-encoded, convert to base64 data URL
+    const hexAudio = data.data.audio
+    const buffer = Buffer.from(hexAudio, 'hex')
+    const base64Audio = buffer.toString('base64')
+    const audioDataUrl = `data:audio/${format || 'mp3'};base64,${base64Audio}`
+
     return {
       success: true,
       data: {
-        urls: data.data.audio_url ? [data.data.audio_url] : undefined,
-        base64: data.data.audio_base64 ? [data.data.audio_base64] : undefined,
+        urls: [audioDataUrl],
       },
       cost: 0.004, // MiniMax TTS cost per 1000 chars approx
       provider: 'minimax',
