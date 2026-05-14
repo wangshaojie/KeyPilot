@@ -238,7 +238,7 @@ const MessageItem = memo(function MessageItem({
       <div
         className={cn(
           "max-w-6xl rounded-2xl px-4 py-3 relative group",
-          isUser ? "bg-accent text-white" : "bg-surface-elevated",
+          isUser ? "bg-accent/15 text-accent" : "bg-surface-elevated",
         )}
       >
         <div className="text-sm">
@@ -298,12 +298,11 @@ const MessageItem = memo(function MessageItem({
           size="icon"
           className={cn(
             "absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity",
-            isUser && "text-white/80 hover:text-white",
           )}
           onClick={() => onCopy(message.content, message.id)}
         >
           {copiedId === message.id ? (
-            <CheckCheck className="w-3 h-3" />
+            <CheckCheck className="w-3 h-3 text-accent" />
           ) : (
             <Copy className="w-3 h-3" />
           )}
@@ -378,6 +377,8 @@ export function Chat() {
   const [generationType, setGenerationType] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [imageSize, setImageSize] = useState<string>("2048x2048");
+  const [imageNum, setImageNum] = useState<number>(1);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -612,8 +613,25 @@ export function Chat() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (generationType) {
-        handleGenerate(generationType as "image" | "video" | "audio" | "music");
+      // Check if model is a generation model (regardless of generationType state)
+      const isGenerationModel =
+        IMAGE_MODELS.some((m) => m.id === selectedModel) ||
+        VIDEO_MODELS.some((m) => m.id === selectedModel) ||
+        AUDIO_MODELS.some((m) => m.id === selectedModel) ||
+        MUSIC_MODELS.some((m) => m.id === selectedModel);
+
+      if (isGenerationModel) {
+        // Determine the type from the model
+        const modelLower = selectedModel.toLowerCase();
+        let type: "image" | "video" | "audio" | "music" = "image";
+        if (modelLower.includes("video") || modelLower.includes("hailuo")) {
+          type = "video";
+        } else if (modelLower.includes("audio") || modelLower.includes("speech") || modelLower.includes("tts")) {
+          type = "audio";
+        } else if (modelLower.includes("music")) {
+          type = "music";
+        }
+        handleGenerate(type);
       } else {
         handleSend();
       }
@@ -675,14 +693,20 @@ export function Chat() {
     addMessages([loadingMessage]);
 
     try {
+      const requestBody: Record<string, string | number> = {
+        keyId: selectedKeyId,
+        model: selectedModel,
+        prompt,
+      };
+      // Add image_size for image generation
+      if (type === "image") {
+        requestBody.image_size = imageSize;
+        requestBody.image_num = imageNum;
+      }
       const response = await fetch(`/api/generation/${type}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          keyId: selectedKeyId,
-          model: selectedModel,
-          prompt,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -733,7 +757,6 @@ export function Chat() {
         isLoading: false,
       });
 
-      setGenerationType(null);
       toast.success(`${type}生成成功`);
     } catch (error: any) {
       toast.error(error.message || "生成失败");
@@ -983,37 +1006,13 @@ export function Chat() {
           {/* Input */}
           <div className="shrink-0 p-4">
             <div className="relative bg-surface/60 backdrop-blur-xl border border-border/60 rounded-2xl shadow-sm overflow-hidden">
-              {/* Generation type badge */}
-              {generationType && (
-                <div className="absolute -top-px left-6">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-b-lg bg-accent/10 text-accent text-xs font-medium border border-accent/20 border-t-0 backdrop-blur-sm">
-                    {generationType === "image" && <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />}
-                    {generationType === "video" && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />}
-                    {generationType === "audio" && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
-                    {generationType === "music" && <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />}
-                    {generationType === "image" ? "图片生成" :
-                     generationType === "video" ? "视频生成" :
-                     generationType === "audio" ? "语音合成" : "音乐生成"}
-                  </span>
-                </div>
-              )}
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={
-                  generationType === "image"
-                    ? "描述你想要生成的图片..."
-                    : generationType === "video"
-                      ? "描述你想要生成的视频场景..."
-                      : generationType === "audio"
-                        ? "输入要合成语音的文本..."
-                        : generationType === "music"
-                          ? "描述你想要创作的音乐风格..."
-                          : "输入消息... (Enter 发送, Shift+Enter 换行)"
-                }
-                className="w-full bg-transparent px-5 pt-5 pb-4 resize-none text-sm placeholder:text-text-muted/50 focus:outline-none min-h-[80px]"
+                placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
+                className="w-full bg-transparent px-5 py-4 resize-none text-sm placeholder:text-text-muted/50 focus:outline-none min-h-20"
                 rows={3}
               />
               <div className="flex items-center justify-between px-5 pb-4">
@@ -1021,13 +1020,60 @@ export function Chat() {
                   {input.length > 0 && (
                     <span className="text-[11px] text-text-muted/40">{input.length} 字符</span>
                   )}
+                  {/* Image size selector for image models */}
+                  {IMAGE_MODELS.some((m) => m.id === selectedModel) && (
+                    <select
+                      value={imageSize}
+                      onChange={(e) => setImageSize(e.target.value)}
+                      className="bg-surface-elevated border border-border/50 rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/30"
+                    >
+                      <option value="2048x2048">1:1 (2048×2048)</option>
+                      <option value="1664x2496">2:3 (1664×2496)</option>
+                      <option value="2496x1664">3:2 (2496×1664)</option>
+                      <option value="1760x2368">3:4 (1760×2368)</option>
+                      <option value="2368x1760">4:3 (2368×1760)</option>
+                      <option value="1824x2272">4:5 (1824×2272)</option>
+                      <option value="2272x1824">5:4 (2272×1824)</option>
+                      <option value="2752x1536">16:9 (2752×1536)</option>
+                      <option value="1536x2752">9:16 (1536×2752)</option>
+                      <option value="3072x1376">21:9 (3072×1376)</option>
+                      <option value="1344x3136">9:21 (1344×3136)</option>
+                    </select>
+                  )}
+                  {/* Image number selector for image models */}
+                  {IMAGE_MODELS.some((m) => m.id === selectedModel) && (
+                    <select
+                      value={imageNum}
+                      onChange={(e) => setImageNum(Number(e.target.value))}
+                      className="bg-surface-elevated border border-border/50 rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/30"
+                    >
+                      <option value={1}>1 张</option>
+                      <option value={2}>2 张</option>
+                      <option value={3}>3 张</option>
+                      <option value={4}>4 张</option>
+                    </select>
+                  )}
                 </div>
                 <Button
                   onClick={() => {
-                    if (generationType) {
-                      handleGenerate(
-                        generationType as "image" | "video" | "audio" | "music",
-                      );
+                    // Check if model is a generation model (regardless of generationType state)
+                    const isGenerationModel =
+                      IMAGE_MODELS.some((m) => m.id === selectedModel) ||
+                      VIDEO_MODELS.some((m) => m.id === selectedModel) ||
+                      AUDIO_MODELS.some((m) => m.id === selectedModel) ||
+                      MUSIC_MODELS.some((m) => m.id === selectedModel);
+
+                    if (isGenerationModel) {
+                      const modelLower = selectedModel.toLowerCase();
+                      let type: "image" | "video" | "audio" | "music" = "image";
+                      if (modelLower.includes("video") || modelLower.includes("hailuo")) {
+                        type = "video";
+                      } else if (modelLower.includes("audio") || modelLower.includes("speech") || modelLower.includes("tts")) {
+                        type = "audio";
+                      } else if (modelLower.includes("music")) {
+                        type = "music";
+                      }
+                      handleGenerate(type);
                     } else {
                       handleSend();
                     }
@@ -1044,12 +1090,22 @@ export function Chat() {
                   {generating ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      {generationType ? "生成中..." : "发送中..."}
+                      {IMAGE_MODELS.some((m) => m.id === selectedModel) ||
+                      VIDEO_MODELS.some((m) => m.id === selectedModel) ||
+                      AUDIO_MODELS.some((m) => m.id === selectedModel) ||
+                      MUSIC_MODELS.some((m) => m.id === selectedModel)
+                        ? "生成中..."
+                        : "发送中..."}
                     </>
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      {generationType ? "生成" : "发送"}
+                      {IMAGE_MODELS.some((m) => m.id === selectedModel) ||
+                      VIDEO_MODELS.some((m) => m.id === selectedModel) ||
+                      AUDIO_MODELS.some((m) => m.id === selectedModel) ||
+                      MUSIC_MODELS.some((m) => m.id === selectedModel)
+                        ? "生成"
+                        : "发送"}
                     </>
                   )}
                 </Button>

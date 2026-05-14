@@ -75,7 +75,8 @@
       "Bash(kill -9 30716)",
       "Bash(taskkill //F //PID 30716)",
       "Bash(taskkill //F //PID 11472)",
-      "Bash(taskkill //F //PID 40108)"
+      "Bash(taskkill //F //PID 40108)",
+      "Bash(git commit *)"
     ]
   }
 }

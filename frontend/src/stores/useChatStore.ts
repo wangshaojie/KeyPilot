@@ -64,6 +64,16 @@ export const useChatStore = create<ChatState>()(
           activeConversationId: id,
           messages: [],
         }))
+        // Save to backend
+        try {
+          await fetch('/api/chat/history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(conversation),
+          })
+        } catch (error) {
+          console.error('[ChatStore] Failed to save conversation to backend:', error)
+        }
         return id
       },
 
@@ -201,6 +211,8 @@ export const useChatStore = create<ChatState>()(
                         streamingContent: '',
                       }
                     })
+                    // Save to backend after streaming completes
+                    get().saveMessagesToBackend()
                   }
                 } catch (e) {
                   // Skip malformed JSON
@@ -237,6 +249,8 @@ export const useChatStore = create<ChatState>()(
                 streamingContent: '',
               }
             })
+            // Save to backend after streaming completes
+            get().saveMessagesToBackend()
           }
         } catch (error) {
           set({ error: error instanceof Error ? error.message : 'Failed to send message', streaming: false })

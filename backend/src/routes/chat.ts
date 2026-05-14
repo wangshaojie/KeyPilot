@@ -306,6 +306,23 @@ chatRouter.get('/history', async (_, res) => {
   }
 })
 
+// POST /api/chat/history - Create new conversation
+chatRouter.post('/history', async (req, res) => {
+  try {
+    const conversation = {
+      id: req.body.id || generateId(),
+      title: req.body.title || 'New Conversation',
+      messages: req.body.messages || [],
+      createdAt: req.body.createdAt || new Date().toISOString(),
+      updatedAt: req.body.updatedAt || new Date().toISOString(),
+    }
+    await store.conversations.add(conversation)
+    res.json({ success: true, data: conversation })
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to create conversation' })
+  }
+})
+
 // PUT /api/chat/history/:id - Update conversation messages
 chatRouter.put('/history/:id', async (req, res) => {
   try {

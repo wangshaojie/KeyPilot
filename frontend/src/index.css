@@ -34,7 +34,11 @@
   }
 
   ::selection {
-    @apply bg-accent/30;
+    @apply bg-accent/50;
+  }
+
+  ::-moz-selection {
+    background-color: rgba(249, 115, 22, 0.5);
   }
 
   ::-webkit-scrollbar {
