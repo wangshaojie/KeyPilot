@@ -1,6 +1,6 @@
 # KeyPilot
 
-开源、轻量、本地部署、私化自用的多厂商 AI Key/Token 聚合管理平台。
+开源、轻量、本地部署、私化自用的多厂商 AI Key/Token 聚合管理平台。目的是有很多平台的API KEY，有些包含图片视频等额度，不用感觉浪费了，每次用命令又麻烦，所有写了这个工具
 
 ![screenshot](assets/demo.webp)
 
@@ -17,12 +17,14 @@
 ## Tech Stack
 
 **Frontend:**
+
 - React 18 + TypeScript + Vite
 - TailwindCSS + shadcn/ui
 - Zustand (状态管理)
 - Axios + React Router v6
 
 **Backend:**
+
 - Node.js + Express + TypeScript
 - SQLite 数据库本地存储（sql.js）
 - CORS 启用（纯本地）
@@ -76,20 +78,20 @@ KeyPilot/
 
 ## API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/keys` | 获取所有 Key |
-| POST | `/api/keys` | 添加新 Key |
-| PUT | `/api/keys/:id` | 更新 Key |
-| DELETE | `/api/keys/:id` | 删除 Key |
-| POST | `/api/keys/:id/test` | 测试单个 Key |
-| POST | `/api/keys/test-all` | 测试所有 Key |
-| POST | `/api/chat` | 发送对话消息 |
-| GET | `/api/chat/history` | 获取对话历史 |
-| POST | `/api/images/generate` | 生成图片 |
-| GET | `/api/images/history` | 获取图片历史 |
-| GET | `/api/usage` | 获取用量统计 |
-| GET/POST | `/api/settings` | 获取/更新设置 |
+| Method   | Endpoint               | Description   |
+| -------- | ---------------------- | ------------- |
+| GET      | `/api/keys`            | 获取所有 Key  |
+| POST     | `/api/keys`            | 添加新 Key    |
+| PUT      | `/api/keys/:id`        | 更新 Key      |
+| DELETE   | `/api/keys/:id`        | 删除 Key      |
+| POST     | `/api/keys/:id/test`   | 测试单个 Key  |
+| POST     | `/api/keys/test-all`   | 测试所有 Key  |
+| POST     | `/api/chat`            | 发送对话消息  |
+| GET      | `/api/chat/history`    | 获取对话历史  |
+| POST     | `/api/images/generate` | 生成图片      |
+| GET      | `/api/images/history`  | 获取图片历史  |
+| GET      | `/api/usage`           | 获取用量统计  |
+| GET/POST | `/api/settings`        | 获取/更新设置 |
 
 ## Data Storage
 

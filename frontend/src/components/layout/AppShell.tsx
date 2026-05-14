@@ -20,7 +20,7 @@ export function AppShell({ children }: AppShellProps) {
         />
         <main
           className={cn(
-            "flex-1 h-[90vh] overflow-y p-2 transition-all duration-300",
+            "flex-1 h-[90vh] overflow-y p-4 transition-all duration-300",
             sidebarCollapsed ? "ml-16" : "ml-64",
           )}
         >
