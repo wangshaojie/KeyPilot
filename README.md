@@ -2,7 +2,7 @@
 
 开源、轻量、本地部署、私化自用的多厂商 AI Key/Token 聚合管理平台。
 
-![screenshot](screenshot-1778741126439.webp)
+![screenshot](assets/demo.webp)
 
 ## Features
 
